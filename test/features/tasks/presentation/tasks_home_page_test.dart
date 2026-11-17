@@ -5,8 +5,8 @@ import 'package:to_do/features/tasks/domain/task_list.dart';
 import 'package:to_do/features/tasks/domain/task_view.dart';
 import 'package:to_do/features/tasks/presentation/tasks_home_page.dart';
 import 'package:to_do/features/tasks/presentation/widgets/app_sidebar.dart';
-import 'package:to_do/features/tasks/presentation/widgets/list_indicator.dart';
 
+import '../../../support/fake_attachment_service.dart';
 import '../../../support/in_memory_workspace_repository.dart';
 import '../../../support/test_harness.dart';
 
@@ -27,12 +27,16 @@ void main() {
     addTearDown(store.dispose);
   });
 
-  Future<void> pumpHome(WidgetTester tester, {double width = 1200}) async {
+  Future<void> pumpHome(
+    WidgetTester tester, {
+    double width = 1200,
+    FakeAttachmentStorage? storage,
+  }) async {
     tester.view.physicalSize = Size(width, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
-      buildTestApp(store: store, home: const TasksHomePage()),
+      buildTestApp(store: store, storage: storage, home: const TasksHomePage()),
     );
     await tester.pumpAndSettle();
   }
@@ -122,7 +126,7 @@ void main() {
     }
   });
 
-  testWidgets('muestra las tareas de hoy, importantes y su lista', (
+  testWidgets('la sidebar muestra contadores y no lista tareas', (
     tester,
   ) async {
     final list = buildList(name: 'Trabajo', emoji: '💼');
@@ -140,6 +144,7 @@ void main() {
           listId: list.id,
         ),
         buildTask(id: 'other', title: 'Comprar pan'),
+        buildTask(id: 'done', title: 'Tarea terminada', isCompleted: true),
       ],
       lists: [TaskList.inbox(DateTime.utc(2026, 11, 1)), list],
     );
@@ -147,24 +152,137 @@ void main() {
     await pumpHome(tester);
 
     final sidebar = find.byType(AppSidebar);
-    // Cada tarea puede aparecer en más de una sección (por ejemplo, en «Vence
-    // hoy» y en «Todas las tareas»).
+
+    // Los contadores de la sidebar solo cuentan tareas pendientes.
     expect(
-      find.descendant(of: sidebar, matching: find.text('Llamar al cliente')),
-      findsWidgets,
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('sidebar-nav-today')),
+        matching: find.text('1'),
+      ),
+      findsOneWidget,
     );
     expect(
-      find.descendant(of: sidebar, matching: find.text('Preparar propuesta')),
-      findsWidgets,
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('sidebar-nav-important')),
+        matching: find.text('1'),
+      ),
+      findsOneWidget,
     );
     expect(
-      find.descendant(of: sidebar, matching: find.text('Comprar pan')),
-      findsWidgets,
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('sidebar-nav-all')),
+        matching: find.text('3'),
+      ),
+      findsOneWidget,
     );
     expect(
-      find.descendant(of: sidebar, matching: find.byType(ListIndicator)),
-      findsWidgets,
+      find.descendant(
+        of: find.byKey(ValueKey<String>('sidebar-list-${list.id}')),
+        matching: find.text('1'),
+      ),
+      findsOneWidget,
     );
+
+    // La sidebar ya no muestra los títulos de las tareas.
+    for (final title in <String>[
+      'Llamar al cliente',
+      'Preparar propuesta',
+      'Comprar pan',
+      'Tarea terminada',
+    ]) {
+      expect(
+        find.descendant(of: sidebar, matching: find.text(title)),
+        findsNothing,
+      );
+    }
+  });
+
+  testWidgets('separa las tareas pendientes de las completadas', (
+    tester,
+  ) async {
+    repository.seed(
+      tasks: [
+        buildTask(id: 'pending', title: 'Pendiente'),
+        buildTask(id: 'done', title: 'Completada', isCompleted: true),
+      ],
+    );
+    await store.load();
+    await pumpHome(tester);
+
+    final pendingHeader = find.byKey(
+      const ValueKey<String>('section-Pendientes'),
+    );
+    final completedHeader = find.byKey(
+      const ValueKey<String>('section-Completadas'),
+    );
+
+    expect(pendingHeader, findsOneWidget);
+    expect(completedHeader, findsOneWidget);
+    expect(
+      find.descendant(of: pendingHeader, matching: find.text('Pendientes (1)')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: completedHeader,
+        matching: find.text('Completadas (1)'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester.getTopLeft(pendingHeader).dy,
+      lessThan(tester.getTopLeft(completedHeader).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Pendiente')).dy,
+      lessThan(tester.getTopLeft(completedHeader).dy),
+    );
+  });
+
+  testWidgets('borra las completadas y solo las copias de sus adjuntos', (
+    tester,
+  ) async {
+    final completedAttachment = buildAttachment(
+      id: 'completed-attachment',
+      storedName: 'completed.png',
+    );
+    final pendingAttachment = buildAttachment(
+      id: 'pending-attachment',
+      storedName: 'pending.png',
+    );
+    repository.seed(
+      tasks: [
+        buildTask(
+          id: 'pending',
+          title: 'Pendiente',
+          attachments: [pendingAttachment],
+        ),
+        buildTask(
+          id: 'done',
+          title: 'Completada',
+          isCompleted: true,
+          attachments: [completedAttachment],
+        ),
+      ],
+    );
+    await store.load();
+    final storage = FakeAttachmentStorage();
+    await pumpHome(tester, storage: storage);
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('delete-completed-button')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Borrar completadas'), findsOneWidget);
+
+    await tester.tap(find.text('Borrar'));
+    await tester.pumpAndSettle();
+
+    expect(repository.stored.tasks.map((task) => task.id), <String>['pending']);
+    expect(storage.deleted, contains('completed.png'));
+    expect(storage.deleted, isNot(contains('pending.png')));
+    expect(find.text('Se eliminó 1 tarea completada'), findsOneWidget);
   });
 
   testWidgets('en móvil la sidebar empieza oculta y se abre con el menú', (

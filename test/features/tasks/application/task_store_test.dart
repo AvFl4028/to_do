@@ -420,6 +420,82 @@ void main() {
     });
   });
 
+  group('borrado de completadas', () {
+    test('elimina solo las completadas de la vista actual', () async {
+      final work = buildList(id: 'work', name: 'Trabajo');
+      final home = buildList(id: 'home', name: 'Casa');
+      repository.seed(
+        tasks: [
+          buildTask(
+            id: 'work-done',
+            title: 'Trabajo hecha',
+            listId: work.id,
+            isCompleted: true,
+          ),
+          buildTask(
+            id: 'work-pending',
+            title: 'Trabajo pendiente',
+            listId: work.id,
+          ),
+          buildTask(
+            id: 'home-done',
+            title: 'Casa hecha',
+            listId: home.id,
+            isCompleted: true,
+          ),
+        ],
+        lists: [TaskList.inbox(DateTime.utc(2026, 11, 1)), work, home],
+      );
+      await store.load();
+      store.setView(ListTasksView(work.id));
+
+      final removed = await store.deleteCompletedInView();
+
+      expect(removed.map((task) => task.id), <String>['work-done']);
+      expect(store.taskById('work-done'), isNull);
+      expect(store.taskById('work-pending'), isNotNull);
+      expect(store.taskById('home-done'), isNotNull);
+      expect(store.canUndoDelete, isFalse);
+    });
+
+    test('en todas las tareas elimina todas las completadas', () async {
+      repository.seed(
+        tasks: [
+          buildTask(id: 'done-1', isCompleted: true),
+          buildTask(id: 'done-2', isCompleted: true),
+          buildTask(id: 'pending'),
+        ],
+      );
+      await store.load();
+
+      expect(store.completedInView, hasLength(2));
+
+      final removed = await store.deleteCompletedInView();
+
+      expect(removed, hasLength(2));
+      expect(store.allTasks.single.id, 'pending');
+    });
+
+    test('hoy e importantes no tienen completadas que borrar', () async {
+      repository.seed(
+        tasks: [
+          buildTask(id: 'today', dueDate: DateTime(2026, 11, 16)),
+          buildTask(
+            id: 'done-today',
+            dueDate: DateTime(2026, 11, 16),
+            isCompleted: true,
+          ),
+        ],
+      );
+      await store.load();
+      store.setView(const TodayTasksView());
+
+      expect(store.completedInView, isEmpty);
+      expect(await store.deleteCompletedInView(), isEmpty);
+      expect(store.taskById('done-today'), isNotNull);
+    });
+  });
+
   group('adjuntos', () {
     test(
       'añade y quita adjuntos y expone los archivos referenciados',

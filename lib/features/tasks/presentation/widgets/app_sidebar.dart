@@ -2,14 +2,10 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../../core/theme/tag_palette.dart';
 import '../../application/task_scope.dart';
-import '../../application/task_store.dart';
-import '../../domain/task.dart';
 import '../../domain/task_list.dart';
 import '../../domain/task_tag.dart';
 import '../../domain/task_view.dart';
-import '../task_detail_page.dart';
 import 'list_form_dialog.dart';
-import 'list_indicator.dart';
 import 'tag_dialogs.dart';
 
 enum _ListMenuAction { edit, delete }
@@ -41,41 +37,29 @@ class AppSidebar extends StatelessWidget {
         children: [
           _BrandHeader(isDrawer: isDrawer, onClose: onNavigate),
           const SizedBox(height: 4),
-          ..._taskSection(
-            context: context,
-            store: store,
+          _NavHeader(
+            key: const ValueKey<String>('sidebar-nav-today'),
             label: 'Vence hoy',
             icon: Icons.wb_sunny_outlined,
             count: store.todayCount,
             selected: view is TodayTasksView,
-            onSelect: () => _go(context, const TodayTasksView()),
-            tasks: store.todayTasks,
-            showList: false,
-            emptyLabel: 'No hay tareas para hoy',
+            onTap: () => _go(context, const TodayTasksView()),
           ),
-          ..._taskSection(
-            context: context,
-            store: store,
+          _NavHeader(
+            key: const ValueKey<String>('sidebar-nav-important'),
             label: 'Importantes',
             icon: Icons.star_outline_rounded,
             count: store.importantCount,
             selected: view is ImportantTasksView,
-            onSelect: () => _go(context, const ImportantTasksView()),
-            tasks: store.importantTasks,
-            showList: false,
-            emptyLabel: 'Sin tareas importantes',
+            onTap: () => _go(context, const ImportantTasksView()),
           ),
-          ..._taskSection(
-            context: context,
-            store: store,
+          _NavHeader(
+            key: const ValueKey<String>('sidebar-nav-all'),
             label: 'Todas las tareas',
             icon: Icons.checklist_rounded,
-            count: store.allTasks.length,
+            count: store.pendingCount,
             selected: view is AllTasksView,
-            onSelect: () => _go(context, const AllTasksView()),
-            tasks: store.allTasks,
-            showList: true,
-            emptyLabel: 'Todavía no hay tareas',
+            onTap: () => _go(context, const AllTasksView()),
           ),
           const Divider(height: 20),
           _GroupHeader(
@@ -117,52 +101,9 @@ class AppSidebar extends StatelessWidget {
     );
   }
 
-  List<Widget> _taskSection({
-    required BuildContext context,
-    required TaskStore store,
-    required String label,
-    required IconData icon,
-    required int count,
-    required bool selected,
-    required VoidCallback onSelect,
-    required List<Task> tasks,
-    required bool showList,
-    required String emptyLabel,
-  }) {
-    return <Widget>[
-      _NavHeader(
-        label: label,
-        icon: icon,
-        count: count,
-        selected: selected,
-        onTap: onSelect,
-      ),
-      if (tasks.isEmpty)
-        _EmptyHint(emptyLabel)
-      else
-        for (final task in tasks)
-          _SidebarTaskRow(
-            task: task,
-            list: showList ? store.listById(task.listId) : null,
-            onTap: () => _openTask(context, task),
-          ),
-      const SizedBox(height: 10),
-    ];
-  }
-
   void _go(BuildContext context, TaskView view) {
     TaskScope.of(context).setView(view);
     onNavigate?.call();
-  }
-
-  void _openTask(BuildContext context, Task task) {
-    final navigator = Navigator.of(context);
-    onNavigate?.call();
-    navigator.push(
-      MaterialPageRoute<void>(
-        builder: (context) => TaskDetailPage(taskId: task.id),
-      ),
-    );
   }
 
   Future<void> _createList(BuildContext context) async {
@@ -321,6 +262,7 @@ class _BrandHeader extends StatelessWidget {
 
 class _NavHeader extends StatelessWidget {
   const _NavHeader({
+    super.key,
     required this.label,
     required this.icon,
     required this.count,
@@ -371,31 +313,38 @@ class _NavHeader extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (count > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? scheme.secondary
-                          : scheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '$count',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: selected
-                            ? scheme.onSecondary
-                            : scheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+                _CountBadge(count: count, selected: selected),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CountBadge extends StatelessWidget {
+  const _CountBadge({required this.count, required this.selected});
+
+  final int count;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: selected ? scheme.secondary : scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '$count',
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: selected ? scheme.onSecondary : scheme.onSurfaceVariant,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -440,71 +389,6 @@ class _GroupHeader extends StatelessWidget {
             icon: const Icon(Icons.add),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _SidebarTaskRow extends StatelessWidget {
-  const _SidebarTaskRow({required this.task, this.list, required this.onTap});
-
-  final Task task;
-  final TaskList? list;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final list = this.list;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 6, 10, 6),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 5),
-              child: Icon(Icons.circle, size: 6, color: scheme.outline),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    task.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurface,
-                    ),
-                  ),
-                  if (list != null) ...[
-                    const SizedBox(height: 1),
-                    ListIndicator(
-                      emoji: list.emoji,
-                      name: list.name,
-                      compact: true,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (task.isImportant)
-              const Padding(
-                padding: EdgeInsets.only(left: 4, top: 2),
-                child: Icon(
-                  Icons.star_rounded,
-                  size: 14,
-                  color: Color(0xFFF59E0B),
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }
@@ -571,18 +455,10 @@ class _ListRow extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (pendingCount > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4),
-                    child: Text(
-                      '$pendingCount',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: selected
-                            ? scheme.onSecondaryContainer
-                            : scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: _CountBadge(count: pendingCount, selected: selected),
+                ),
                 PopupMenuButton<_ListMenuAction>(
                   tooltip: 'Opciones de ${list.name}',
                   iconSize: 18,
@@ -676,18 +552,10 @@ class _TagRow extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (pendingCount > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4),
-                    child: Text(
-                      '$pendingCount',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: selected
-                            ? scheme.onSecondaryContainer
-                            : scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: _CountBadge(count: pendingCount, selected: selected),
+                ),
                 PopupMenuButton<_TagMenuAction>(
                   tooltip: 'Opciones de ${tag.name}',
                   iconSize: 18,

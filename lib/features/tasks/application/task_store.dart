@@ -103,6 +103,12 @@ class TaskStore extends ChangeNotifier {
     return List<Task>.unmodifiable(_sorted(filtered));
   }
 
+  /// Tareas completadas que pertenecen a la vista actual, sin aplicar el
+  /// filtro de estado. Es la base del borrado masivo de completadas.
+  List<Task> get completedInView => List<Task>.unmodifiable(
+    _sorted(_viewTasks().where((task) => task.isCompleted)),
+  );
+
   Map<TaskFilter, int> get filterCounts {
     final base = _viewTasks().toList();
     return <TaskFilter, int>{
@@ -581,6 +587,25 @@ class TaskStore extends ChangeNotifier {
     restored.insert(index, task);
     _tasks = restored;
     await _commit();
+  }
+
+  /// Elimina las tareas completadas de la vista actual y devuelve las que se
+  /// quitaron. No toca los archivos adjuntos: la capa de presentación decide
+  /// qué copias internas borrar.
+  Future<List<Task>> deleteCompletedInView() async {
+    final completed = _viewTasks()
+        .where((task) => task.isCompleted)
+        .toList(growable: false);
+    if (completed.isEmpty) {
+      return const <Task>[];
+    }
+
+    final ids = <String>{for (final task in completed) task.id};
+    // El borrado masivo no se puede deshacer con el SnackBar individual.
+    _lastDeleted = null;
+    _tasks = _tasks.where((task) => !ids.contains(task.id)).toList();
+    await _commit();
+    return completed;
   }
 
   void setView(TaskView view) {

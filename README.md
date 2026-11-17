@@ -12,8 +12,11 @@ Aplicación de lista de tareas hecha con Flutter, enfocada en escritorio
 - Pantalla de detalle separada con la descripción renderizada y la fecha de
   entrega.
 - Filtros por todas, pendientes, completadas y vencidas.
-- Barra lateral con accesos rápidos: tareas que vencen hoy, tareas importantes
-  y todas las tareas (con un indicador de la lista a la que pertenecen).
+- La vista principal separa las tareas **Pendientes** de las **Completadas**.
+- Botón **Borrar completadas** para eliminar las tareas completadas de la vista
+  actual.
+- Barra lateral con botones y contadores de pendientes: tareas que vencen hoy,
+  tareas importantes y todas las tareas. La sidebar ya no lista tareas.
 - Listas personalizadas con emoji, renombrables y eliminables. Al eliminar una
   lista sus tareas se mueven a la **Bandeja de entrada**.
 - Etiquetas globales compartidas por todas las listas, con color automático.
@@ -29,6 +32,7 @@ Aplicación de lista de tareas hecha con Flutter, enfocada en escritorio
 - En escritorio (ancho ≥ 1000 px) está siempre visible.
 - En pantallas más estrechas (móvil y ventanas pequeñas) se abre desde el menú
   lateral.
+- Cada acceso muestra un contador con las tareas pendientes.
 - La **Bandeja de entrada** siempre existe: se puede renombrar y cambiar de
   emoji, pero no eliminar.
 
@@ -73,8 +77,12 @@ La clave `tasks_v1` se conserva como respaldo y no se modifica.
 Los archivos se copian a `<directorio de datos de la aplicación>/attachments` y
 en el workspace solo se guarda el nombre relativo, nunca una ruta absoluta. Así
 los datos se pueden mover entre equipos o sincronizar en el futuro. Al arrancar
-se eliminan los adjuntos huérfanos; los de tareas recién eliminadas se
+se eliminan los adjuntos huérfanos; los de tareas eliminadas individualmente se
 conservan hasta el siguiente arranque para que **Deshacer** siga funcionando.
+
+Al usar **Borrar completadas**, las tareas se eliminan y también se borran sus
+copias internas de adjuntos. Los archivos originales que el usuario seleccionó
+nunca se tocan: la aplicación solo guarda y elimina sus propias copias.
 
 En **web** los adjuntos están deshabilitados temporalmente: se necesitará un
 backend para almacenar los archivos. La interfaz de almacenamiento ya está
