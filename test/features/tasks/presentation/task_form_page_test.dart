@@ -103,6 +103,23 @@ void main() {
     expect(find.text('Guardar'), findsOneWidget);
   });
 
+  testWidgets('precarga la hora de entrega y permite quitarla', (tester) async {
+    final task = buildTask(
+      title: 'Con hora',
+      dueDate: DateTime(2026, 11, 20),
+      dueTimeMinutes: 9 * 60 + 30,
+    );
+
+    await pumpForm(tester, task: task);
+
+    expect(find.text('09:30'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Quitar hora'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sin hora'), findsOneWidget);
+  });
+
   testWidgets('permite cambiar de lista', (tester) async {
     final list = buildList(name: 'Casa', emoji: '🏠');
     repository.seed(lists: [TaskList.inbox(DateTime.utc(2026, 11, 1)), list]);

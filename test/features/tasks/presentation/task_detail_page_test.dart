@@ -115,6 +115,35 @@ void main() {
     expect(find.text('Sin fecha'), findsOneWidget);
   });
 
+  testWidgets('muestra la hora y el aviso de hora pasada', (tester) async {
+    repository.seed(
+      tasks: [
+        buildTask(dueDate: DateTime(2026, 11, 16), dueTimeMinutes: 9 * 60),
+      ],
+    );
+    await store.load();
+    await pumpDetail(tester);
+
+    expect(find.text('Hoy · 09:00'), findsOneWidget);
+    expect(find.text('Hora pasada'), findsOneWidget);
+  });
+
+  testWidgets('permite quitar la hora de entrega', (tester) async {
+    repository.seed(
+      tasks: [
+        buildTask(dueDate: DateTime(2026, 11, 20), dueTimeMinutes: 9 * 60),
+      ],
+    );
+    await store.load();
+    await pumpDetail(tester);
+
+    await tester.tap(find.byTooltip('Quitar hora'));
+    await tester.pumpAndSettle();
+
+    expect(repository.stored.tasks.single.dueTimeMinutes, isNull);
+    expect(find.text('Sin hora'), findsOneWidget);
+  });
+
   testWidgets('añade y quita adjuntos', (tester) async {
     final picked = buildAttachment(fileName: 'foto.png');
     final storage = FakeAttachmentStorage(attachmentsToPick: [picked]);

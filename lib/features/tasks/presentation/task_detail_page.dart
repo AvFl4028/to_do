@@ -1,6 +1,7 @@
 import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../../core/theme/app_motion.dart';
 import '../../../core/utils/date_formatters.dart';
 import '../application/task_scope.dart';
 import '../application/task_store.dart';
@@ -15,16 +16,58 @@ import 'widgets/due_date_picker.dart';
 import 'widgets/list_indicator.dart';
 import 'widgets/tag_chip.dart';
 
-class TaskDetailPage extends StatelessWidget {
-  const TaskDetailPage({super.key, required this.taskId});
+class TaskDetailPage extends StatefulWidget {
+  const TaskDetailPage({
+    super.key,
+    required this.taskId,
+    this.embedded = false,
+    this.onEdit,
+    this.onClose,
+    this.onDeleted,
+  });
 
   final String taskId;
 
+  /// `true` para mostrarse dentro del panel derecho, sin `Scaffold`.
+  final bool embedded;
+
+  /// En modo embebido, abre el formulario dentro del panel.
+  final VoidCallback? onEdit;
+
+  /// Botón de cerrar del panel; `null` en la página completa.
+  final VoidCallback? onClose;
+
+  /// Se llama después de eliminar la tarea en modo embebido.
+  final VoidCallback? onDeleted;
+
+  @override
+  State<TaskDetailPage> createState() => _TaskDetailPageState();
+}
+
+class _TaskDetailPageState extends State<TaskDetailPage> {
   @override
   Widget build(BuildContext context) {
     final store = TaskScope.of(context);
-    final task = store.taskById(taskId);
-    final theme = Theme.of(context);
+    final task = store.taskById(widget.taskId);
+
+    if (widget.embedded) {
+      return Column(
+        children: [
+          _EmbeddedHeader(
+            onClose: widget.onClose,
+            onEdit: task == null ? null : () => _editTask(context, store, task),
+            onDelete: task == null
+                ? null
+                : () => _deleteTask(context, store, task),
+          ),
+          Expanded(
+            child: task == null
+                ? const Center(child: Text('Esta tarea ya no existe.'))
+                : _buildContent(context, store, task),
+          ),
+        ],
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -47,102 +90,134 @@ class TaskDetailPage extends StatelessWidget {
       ),
       body: task == null
           ? const Center(child: Text('Esta tarea ya no existe.'))
-          : SafeArea(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 860),
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
-                    children: [
-                      _TaskHeader(task: task, store: store),
-                      const SizedBox(height: 20),
-                      Card(
-                        child: ListTile(
-                          key: const ValueKey('task-detail-due-date'),
-                          leading: const Icon(Icons.event_outlined),
-                          title: const Text('Fecha de entrega'),
-                          subtitle: Text(
-                            task.dueDate == null
-                                ? 'Sin fecha'
-                                : AppDates.long(task.dueDate!),
+          : SafeArea(child: _buildContent(context, store, task)),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, TaskStore store, Task task) {
+    final theme = Theme.of(context);
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 860),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+          children: [
+            _TaskHeader(task: task, store: store),
+            const SizedBox(height: 20),
+            Card(
+              child: Column(
+                children: [
+                  ListTile(
+                    key: const ValueKey('task-detail-due-date'),
+                    leading: const Icon(Icons.event_outlined),
+                    title: const Text('Fecha de entrega'),
+                    subtitle: Text(
+                      task.dueDate == null
+                          ? 'Sin fecha'
+                          : AppDates.long(task.dueDate!),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (task.dueDate != null)
+                          IconButton(
+                            tooltip: 'Quitar fecha',
+                            icon: const Icon(Icons.close),
+                            onPressed: () => store.setDueDate(task.id, null),
                           ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (task.dueDate != null)
-                                IconButton(
-                                  tooltip: 'Quitar fecha',
-                                  icon: const Icon(Icons.close),
-                                  onPressed: () =>
-                                      store.setDueDate(task.id, null),
-                                ),
-                              const Icon(Icons.edit_calendar_outlined),
-                            ],
-                          ),
-                          onTap: () => _pickDueDate(context, store, task),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      AttachmentSection(
-                        attachments: task.attachments,
-                        onAdd: () => _addAttachments(context, store, task),
-                        onRemove: (attachment) =>
-                            _removeAttachment(store, task, attachment),
-                        onOpen: (attachment) =>
-                            _openAttachment(context, attachment),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Descripción',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Contenido en Markdown',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: task.description.trim().isEmpty
-                              ? Row(
-                                  children: [
-                                    Icon(
-                                      Icons.notes_rounded,
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        'Esta tarea no tiene descripción. Puedes añadirla desde Editar.',
-                                        style: theme.textTheme.bodyMedium
-                                            ?.copyWith(
-                                              color: theme
-                                                  .colorScheme
-                                                  .onSurfaceVariant,
-                                            ),
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              : SelectionArea(
-                                  child: GptMarkdown(
-                                    task.description,
-                                    isStreaming: false,
-                                  ),
-                                ),
-                        ),
-                      ),
-                    ],
+                        const Icon(Icons.edit_calendar_outlined),
+                      ],
+                    ),
+                    onTap: () => _pickDueDate(context, store, task),
                   ),
-                ),
+                  const Divider(height: 1),
+                  ListTile(
+                    key: const ValueKey('task-detail-due-time'),
+                    enabled: task.dueDate != null,
+                    leading: const Icon(Icons.schedule_outlined),
+                    title: const Text('Hora de entrega'),
+                    subtitle: Text(
+                      task.dueDate == null
+                          ? 'Elige primero una fecha'
+                          : (task.dueTimeMinutes == null
+                                ? 'Sin hora'
+                                : AppDates.timeLabel(task.dueTimeMinutes!)),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (task.dueTimeMinutes != null)
+                          IconButton(
+                            tooltip: 'Quitar hora',
+                            icon: const Icon(Icons.close),
+                            onPressed: () => store.setDueTime(task.id, null),
+                          ),
+                        const Icon(Icons.schedule),
+                      ],
+                    ),
+                    onTap: task.dueDate == null
+                        ? null
+                        : () => _pickDueTime(context, store, task),
+                  ),
+                ],
               ),
             ),
+            const SizedBox(height: 24),
+            AttachmentSection(
+              attachments: task.attachments,
+              onAdd: () => _addAttachments(context, store, task),
+              onRemove: (attachment) =>
+                  _removeAttachment(store, task, attachment),
+              onOpen: (attachment) => _openAttachment(context, attachment),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Descripción',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Contenido en Markdown',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: task.description.trim().isEmpty
+                    ? Row(
+                        children: [
+                          Icon(
+                            Icons.notes_rounded,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Esta tarea no tiene descripción. Puedes añadirla desde Editar.',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : SelectionArea(
+                        child: GptMarkdown(
+                          task.description,
+                          isStreaming: false,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -156,6 +231,24 @@ class TaskDetailPage extends StatelessWidget {
       return;
     }
     await store.setDueDate(task.id, picked);
+  }
+
+  Future<void> _pickDueTime(
+    BuildContext context,
+    TaskStore store,
+    Task task,
+  ) async {
+    if (task.dueDate == null) {
+      return;
+    }
+    final picked = await pickTaskDueTime(
+      context,
+      initialMinutes: task.dueTimeMinutes,
+    );
+    if (picked == null) {
+      return;
+    }
+    await store.setDueTime(task.id, picked);
   }
 
   Future<void> _addAttachments(
@@ -241,6 +334,12 @@ class TaskDetailPage extends StatelessWidget {
     TaskStore store,
     Task task,
   ) async {
+    final onEdit = widget.onEdit;
+    if (onEdit != null) {
+      onEdit();
+      return;
+    }
+
     final result = await Navigator.of(context).push<TaskFormResult>(
       MaterialPageRoute<TaskFormResult>(
         builder: (context) => TaskFormPage(task: task),
@@ -254,6 +353,7 @@ class TaskDetailPage extends StatelessWidget {
       title: result.title,
       description: result.description,
       dueDate: result.dueDate,
+      dueTimeMinutes: result.dueTimeMinutes,
       listId: result.listId,
       isImportant: result.isImportant,
       tagIds: result.tagIds,
@@ -269,7 +369,7 @@ class TaskDetailPage extends StatelessWidget {
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Eliminar tarea'),
@@ -295,7 +395,11 @@ class TaskDetailPage extends StatelessWidget {
     if (!context.mounted) {
       return;
     }
-    navigator.pop();
+    if (widget.embedded) {
+      widget.onDeleted?.call();
+    } else {
+      navigator.pop();
+    }
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
@@ -304,6 +408,54 @@ class TaskDetailPage extends StatelessWidget {
           label: 'Deshacer',
           onPressed: () => store.undoDelete(),
         ),
+      ),
+    );
+  }
+}
+
+class _EmbeddedHeader extends StatelessWidget {
+  const _EmbeddedHeader({
+    required this.onClose,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final VoidCallback? onClose;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 6, 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Detalle',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Editar tarea',
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: onEdit,
+          ),
+          IconButton(
+            tooltip: 'Eliminar tarea',
+            icon: const Icon(Icons.delete_outline),
+            onPressed: onDelete,
+          ),
+          if (onClose != null)
+            IconButton(
+              tooltip: 'Cerrar panel',
+              icon: const Icon(Icons.close),
+              onPressed: onClose,
+            ),
+        ],
       ),
     );
   }
@@ -382,7 +534,12 @@ class _TaskHeader extends StatelessWidget {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   _StatusChip(task: task),
-                  if (task.dueDate != null) DueDateBadge(task: task),
+                  if (task.dueDate != null)
+                    DueDateBadge(
+                      task: task,
+                      timePassed: store.isTimePast(task),
+                      now: store.now,
+                    ),
                   if (list != null)
                     ListIndicator(emoji: list.emoji, name: list.name),
                   for (final tag in tags) TagChip(tag: tag, compact: true),

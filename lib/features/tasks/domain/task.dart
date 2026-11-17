@@ -15,11 +15,17 @@ class Task {
     required this.updatedAt,
     this.isCompleted = false,
     this.dueDate,
+    this.dueTimeMinutes,
     this.listId = TaskList.inboxId,
     this.isImportant = false,
     this.tagIds = const <String>[],
     this.attachments = const <Attachment>[],
-  }) : assert(id != '');
+  }) : assert(id != ''),
+       assert(
+         dueTimeMinutes == null ||
+             (dueTimeMinutes >= 0 && dueTimeMinutes < 24 * 60),
+         'La hora de entrega debe estar entre 00:00 y 23:59.',
+       );
 
   final String id;
   final String title;
@@ -31,6 +37,11 @@ class Task {
 
   /// Fecha de entrega elegida manualmente. Es opcional y solo representa un día.
   final DateTime? dueDate;
+
+  /// Hora de entrega en minutos desde medianoche (0–1439).
+  ///
+  /// Es opcional y solo puede existir junto a [dueDate].
+  final int? dueTimeMinutes;
 
   /// Lista a la que pertenece la tarea.
   final String listId;
@@ -63,6 +74,11 @@ class Task {
       throw const FormatException('La tarea no tiene fechas válidas.');
     }
 
+    final dueDate = _parseDueDate(json['dueDate']);
+    final dueTimeMinutes = dueDate == null
+        ? null
+        : _parseDueTime(json['dueTime']);
+
     return Task(
       id: id,
       title: title,
@@ -70,7 +86,8 @@ class Task {
           ? json['description'] as String
           : '',
       isCompleted: json['isCompleted'] == true,
-      dueDate: _parseDueDate(json['dueDate']),
+      dueDate: dueDate,
+      dueTimeMinutes: dueTimeMinutes,
       listId: json['listId'] is String && (json['listId'] as String).isNotEmpty
           ? json['listId'] as String
           : TaskList.inboxId,
@@ -88,6 +105,7 @@ class Task {
     'description': description,
     'isCompleted': isCompleted,
     'dueDate': _formatDueDate(dueDate),
+    'dueTime': _formatDueTime(dueTimeMinutes),
     'listId': listId,
     'isImportant': isImportant,
     'tagIds': tagIds,
@@ -104,6 +122,8 @@ class Task {
     bool? isCompleted,
     DateTime? dueDate,
     bool clearDueDate = false,
+    int? dueTimeMinutes,
+    bool clearDueTime = false,
     String? listId,
     bool? isImportant,
     List<String>? tagIds,
@@ -114,6 +134,10 @@ class Task {
       !(dueDate != null && clearDueDate),
       'No se puede asignar y limpiar la fecha de entrega a la vez.',
     );
+    assert(
+      !(dueTimeMinutes != null && clearDueTime),
+      'No se puede asignar y limpiar la hora de entrega a la vez.',
+    );
 
     return Task(
       id: id,
@@ -121,6 +145,9 @@ class Task {
       description: description ?? this.description,
       isCompleted: isCompleted ?? this.isCompleted,
       dueDate: clearDueDate ? null : (dueDate ?? this.dueDate),
+      dueTimeMinutes: clearDueDate || clearDueTime
+          ? null
+          : (dueTimeMinutes ?? this.dueTimeMinutes),
       listId: listId ?? this.listId,
       isImportant: isImportant ?? this.isImportant,
       tagIds: tagIds ?? this.tagIds,
@@ -148,6 +175,36 @@ class Task {
     final month = date.month.toString().padLeft(2, '0');
     final day = date.day.toString().padLeft(2, '0');
     return '${date.year.toString().padLeft(4, '0')}-$month-$day';
+  }
+
+  static int? _parseDueTime(Object? value) {
+    if (value is! String) {
+      return null;
+    }
+    final parts = value.split(':');
+    if (parts.length != 2) {
+      return null;
+    }
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null ||
+        minute == null ||
+        hour < 0 ||
+        hour > 23 ||
+        minute < 0 ||
+        minute > 59) {
+      return null;
+    }
+    return hour * 60 + minute;
+  }
+
+  static String? _formatDueTime(int? minutes) {
+    if (minutes == null) {
+      return null;
+    }
+    final hour = (minutes ~/ 60).toString().padLeft(2, '0');
+    final minute = (minutes % 60).toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
   static List<String> _parseStringList(Object? value) {
@@ -191,6 +248,7 @@ class Task {
         other.description == description &&
         other.isCompleted == isCompleted &&
         other.dueDate == dueDate &&
+        other.dueTimeMinutes == dueTimeMinutes &&
         other.listId == listId &&
         other.isImportant == isImportant &&
         _sameList(other.tagIds, tagIds) &&
@@ -206,6 +264,7 @@ class Task {
     description,
     isCompleted,
     dueDate,
+    dueTimeMinutes,
     listId,
     isImportant,
     Object.hashAll(tagIds),

@@ -80,6 +80,48 @@ void main() {
       );
     });
 
+    test('guarda y restaura la hora de entrega', () {
+      final task = Task(
+        id: 'task-1',
+        title: 'Tarea',
+        description: '',
+        dueDate: DateTime(2026, 3, 4),
+        dueTimeMinutes: 18 * 60 + 45,
+        createdAt: DateTime.utc(2026, 3, 1),
+        updatedAt: DateTime.utc(2026, 3, 1),
+      );
+
+      expect(task.toJson()['dueTime'], '18:45');
+      expect(Task.fromJson(task.toJson()).dueTimeMinutes, 18 * 60 + 45);
+    });
+
+    test('ignora la hora si no hay fecha de entrega', () {
+      final restored = Task.fromJson(<String, dynamic>{
+        'id': 'task-1',
+        'title': 'Tarea',
+        'dueTime': '09:30',
+        'createdAt': '2026-03-01T10:00:00.000Z',
+        'updatedAt': '2026-03-01T10:00:00.000Z',
+      });
+
+      expect(restored.dueDate, isNull);
+      expect(restored.dueTimeMinutes, isNull);
+    });
+
+    test('ignora horas inválidas al deserializar', () {
+      final restored = Task.fromJson(<String, dynamic>{
+        'id': 'task-1',
+        'title': 'Tarea',
+        'dueDate': '2026-03-04',
+        'dueTime': '25:80',
+        'createdAt': '2026-03-01T10:00:00.000Z',
+        'updatedAt': '2026-03-01T10:00:00.000Z',
+      });
+
+      expect(restored.dueDate, DateTime(2026, 3, 4));
+      expect(restored.dueTimeMinutes, isNull);
+    });
+
     test('copyWith puede limpiar la fecha y cambiar la organización', () {
       final task = Task(
         id: 'task-1',
@@ -98,6 +140,7 @@ void main() {
       );
 
       expect(updated.dueDate, isNull);
+      expect(updated.dueTimeMinutes, isNull);
       expect(updated.listId, 'list-2');
       expect(updated.isImportant, isTrue);
       expect(updated.tagIds, <String>['tag-3']);

@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../core/theme/app_motion.dart';
 import '../../domain/task_list.dart';
 import 'emoji_picker_dialog.dart';
 
@@ -13,7 +14,7 @@ class ListDraft {
 
 /// Diálogo para crear o editar una lista de tareas.
 Future<ListDraft?> showListFormDialog(BuildContext context, {TaskList? list}) {
-  return showDialog<ListDraft>(
+  return showAppDialog<ListDraft>(
     context: context,
     builder: (context) => _ListFormDialog(list: list),
   );

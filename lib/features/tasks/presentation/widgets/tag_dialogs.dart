@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../core/theme/app_motion.dart';
 import '../../application/task_scope.dart';
 import '../../domain/task_tag.dart';
 import 'tag_chip.dart';
@@ -10,7 +11,7 @@ Future<String?> showTagNameDialog(
   String? initialName,
   String title = 'Nueva etiqueta',
 }) {
-  return showDialog<String>(
+  return showAppDialog<String>(
     context: context,
     builder: (context) =>
         _TagNameDialog(initialName: initialName, title: title),
@@ -92,7 +93,7 @@ Future<Set<String>?> showTagPickerDialog(
   BuildContext context, {
   required Set<String> initialSelection,
 }) {
-  return showDialog<Set<String>>(
+  return showAppDialog<Set<String>>(
     context: context,
     builder: (context) => _TagPickerDialog(initialSelection: initialSelection),
   );

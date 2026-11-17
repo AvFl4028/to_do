@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:to_do/core/settings/app_settings.dart';
+import 'package:to_do/core/settings/settings_controller.dart';
 import 'package:to_do/features/tasks/application/task_store.dart';
 import 'package:to_do/features/tasks/domain/task_list.dart';
 import 'package:to_do/features/tasks/domain/task_view.dart';
@@ -31,12 +33,18 @@ void main() {
     WidgetTester tester, {
     double width = 1200,
     FakeAttachmentStorage? storage,
+    SettingsController? settings,
   }) async {
     tester.view.physicalSize = Size(width, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
-      buildTestApp(store: store, storage: storage, home: const TasksHomePage()),
+      buildTestApp(
+        store: store,
+        storage: storage,
+        settings: settings,
+        home: const TasksHomePage(),
+      ),
     );
     await tester.pumpAndSettle();
   }
@@ -344,5 +352,104 @@ void main() {
     expect(store.view, ListTasksView(list.id));
     expect(find.text('En la lista'), findsWidgets);
     expect(store.visibleTasks.single.id, 'in-list');
+  });
+
+  testWidgets('abre y edita la tarea en el panel derecho', (tester) async {
+    repository.seed(tasks: [buildTask(title: 'Abrir en panel')]);
+    await store.load();
+    await pumpHome(tester);
+
+    await tester.tap(find.text('Abrir en panel'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('task-detail-panel')), findsOneWidget);
+    expect(find.byType(BackButton), findsNothing);
+
+    await tester.tap(find.byTooltip('Editar tarea'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('task-title-field')),
+      'Editada en panel',
+    );
+    await tester.tap(find.byKey(const ValueKey('task-save-button')));
+    await tester.pumpAndSettle();
+
+    expect(repository.stored.tasks.single.title, 'Editada en panel');
+    expect(find.byKey(const ValueKey('task-detail-panel')), findsOneWidget);
+    expect(find.text('Editada en panel'), findsWidgets);
+
+    await tester.tap(find.byTooltip('Cerrar panel'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('task-detail-panel')), findsNothing);
+  });
+
+  testWidgets('redimensiona las barras y guarda los anchos', (tester) async {
+    final settings = buildTestSettings();
+    addTearDown(settings.dispose);
+    repository.seed(tasks: [buildTask(title: 'Con panel')]);
+    await store.load();
+    await pumpHome(tester, settings: settings);
+
+    final initialSidebar = tester.getSize(
+      find.byKey(const ValueKey('app-sidebar-container')),
+    );
+    expect(initialSidebar.width, AppSettings.defaultSidebarWidth);
+
+    await tester.drag(
+      find.byKey(const ValueKey('sidebar-resize-handle')),
+      const Offset(60, 0),
+    );
+    await tester.pumpAndSettle();
+
+    final widenedSidebar = tester.getSize(
+      find.byKey(const ValueKey('app-sidebar-container')),
+    );
+    expect(widenedSidebar.width, greaterThan(initialSidebar.width));
+    expect(settings.settings.sidebarWidth, widenedSidebar.width);
+
+    await tester.tap(find.text('Con panel'));
+    await tester.pumpAndSettle();
+
+    final initialPanel = tester.getSize(
+      find.byKey(const ValueKey('task-panel-container')),
+    );
+    expect(initialPanel.width, AppSettings.defaultPanelWidth);
+
+    await tester.drag(
+      find.byKey(const ValueKey('panel-resize-handle')),
+      const Offset(-50, 0),
+    );
+    await tester.pumpAndSettle();
+
+    final widenedPanel = tester.getSize(
+      find.byKey(const ValueKey('task-panel-container')),
+    );
+    expect(widenedPanel.width, greaterThan(initialPanel.width));
+    expect(settings.settings.panelWidth, widenedPanel.width);
+  });
+
+  testWidgets('restaura los anchos guardados al iniciar', (tester) async {
+    final settings = buildTestSettings(
+      settings: const AppSettings(sidebarWidth: 360, panelWidth: 480),
+    );
+    addTearDown(settings.dispose);
+    repository.seed(tasks: [buildTask(title: 'Restaurada')]);
+    await store.load();
+    await pumpHome(tester, settings: settings);
+
+    expect(
+      tester.getSize(find.byKey(const ValueKey('app-sidebar-container'))).width,
+      360,
+    );
+
+    await tester.tap(find.text('Restaurada'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(const ValueKey('task-panel-container'))).width,
+      480,
+    );
   });
 }

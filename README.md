@@ -8,10 +8,16 @@ Aplicación de lista de tareas hecha con Flutter, enfocada en escritorio
 - CRUD completo de tareas: crear, ver, editar, completar y eliminar.
 - Eliminación con opción de **deshacer**.
 - Fecha de entrega manual y opcional por tarea.
+- Hora de entrega opcional (solo si hay fecha), con selector de 24 horas y aviso
+  discreto de **Hora pasada** cuando vence hoy y la hora ya pasó.
 - Descripción en **Markdown** con editor y vista previa.
-- Pantalla de detalle separada con la descripción renderizada y la fecha de
-  entrega.
-- Filtros por todas, pendientes, completadas y vencidas.
+- Detalle en un **panel derecho** en escritorio, con edición dentro del mismo
+  panel; en móvil se mantiene la página de detalle completa.
+- Barras laterales redimensionables en escritorio, con anchos persistentes.
+- Pantalla de **Configuración** con tema Claro / Oscuro / Sistema, animaciones
+  activables y duración ajustable de 100 a 600 ms.
+- Filtros por todas, pendientes, completadas y vencidas (el vencimiento sigue
+  siendo por día, no por hora).
 - La vista principal separa las tareas **Pendientes** de las **Completadas**.
 - Botón **Borrar completadas** para eliminar las tareas completadas de la vista
   actual.
@@ -27,6 +33,16 @@ Aplicación de lista de tareas hecha con Flutter, enfocada en escritorio
     predeterminada del sistema.
 - Persistencia local, tema claro/oscuro e interfaz en español.
 
+## Escritorio y móvil
+
+- En escritorio (ancho ≥ 1000 px) la barra lateral izquierda está siempre
+  visible y, al abrir una tarea, el detalle aparece en un panel derecho sin
+  abandonar la lista.
+- Los divisores de ambas barras se pueden arrastrar; un doble clic restablece el
+  ancho por defecto. Los anchos se guardan al soltar el arrastre.
+- En pantallas más estrechas la barra lateral se abre desde el menú y el detalle
+  de la tarea se abre como página completa.
+
 ## Barra lateral
 
 - En escritorio (ancho ≥ 1000 px) está siempre visible.
@@ -40,31 +56,42 @@ Aplicación de lista de tareas hecha con Flutter, enfocada en escritorio
 
 ```text
 lib/
-  main.dart                         # Arranque, migración y limpieza de adjuntos
-  app.dart                          # MaterialApp, tema, locale y TaskScope
+  main.dart                         # Arranque, ajustes, migración y adjuntos
+  app.dart                          # MaterialApp, tema, animaciones y scopes
   core/
+    settings/                       # AppSettings, controlador, scope y storage
+    theme/app_motion.dart           # Transiciones, diálogos y duración
     theme/app_theme.dart
     theme/tag_palette.dart          # Colores estables de las etiquetas
     utils/date_formatters.dart
     utils/file_size.dart
+  features/settings/presentation/    # Pantalla de configuración
   features/tasks/
     domain/                         # Task, listas, etiquetas, adjuntos y vistas
     data/                           # Repositorio del workspace y adjuntos
     application/                    # TaskStore (ChangeNotifier) y TaskScope
-    presentation/                   # Sidebar, contenido, formulario, detalle, etc.
+    presentation/                   # Sidebar, contenido, formulario, panel, etc.
 test/
+  core/settings/                    # Pruebas de ajustes
+  features/settings/                # Pruebas de la pantalla de configuración
   features/tasks/                   # Tests de dominio, datos, estado y widgets
-  support/                          # Repositorio y servicios simulados
+  support/                          # Repositorios y servicios simulados
 ```
 
 ## Persistencia y sincronización futura
 
 El workspace completo (tareas, listas y etiquetas) se guarda como un único
 documento JSON versionado en `shared_preferences` bajo la clave `workspace_v2`.
-El acceso está detrás de la interfaz `WorkspaceRepository`, por lo que se puede
-añadir en el futuro un repositorio con sincronización (Google Tasks, Nextcloud,
-etc.) sin cambiar la interfaz de usuario. Los modelos ya incluyen IDs estables
-(`uuid`) y `updatedAt` para facilitar la resolución de conflictos.
+La hora de entrega se guarda como `dueTime` (`"HH:mm"`), sin cambiar la versión
+del documento. El acceso está detrás de la interfaz `WorkspaceRepository`, por
+lo que se puede añadir en el futuro un repositorio con sincronización (Google
+Tasks, Nextcloud, etc.) sin cambiar la interfaz de usuario. Los modelos ya
+incluyen IDs estables (`uuid`) y `updatedAt` para facilitar la resolución de
+conflictos.
+
+Los ajustes locales (tema, animaciones y anchos de las barras laterales) se
+guardan por separado en `settings_v1`. Al arrancar se cargan antes de mostrar la
+interfaz para evitar parpadeos de tema.
 
 ### Migración desde `tasks_v1`
 

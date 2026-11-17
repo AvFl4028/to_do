@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../core/theme/app_motion.dart';
+
 /// Emojis sugeridos para listas. Se puede pegar cualquiera en el campo de texto.
 const List<String> _suggestedEmojis = <String>[
   '📥',
@@ -54,7 +56,7 @@ const List<String> _suggestedEmojis = <String>[
 
 /// Muestra el selector de emoji y devuelve el elegido, o `null` al cancelar.
 Future<String?> showEmojiPickerDialog(BuildContext context, {String? initial}) {
-  return showDialog<String>(
+  return showAppDialog<String>(
     context: context,
     builder: (context) => _EmojiPickerDialog(initial: initial),
   );

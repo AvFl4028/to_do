@@ -1,5 +1,9 @@
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:to_do/core/settings/app_settings.dart';
+import 'package:to_do/core/settings/settings_controller.dart';
+import 'package:to_do/core/settings/settings_scope.dart';
+import 'package:to_do/core/theme/app_motion.dart';
 import 'package:to_do/core/theme/app_theme.dart';
 import 'package:to_do/features/tasks/application/task_scope.dart';
 import 'package:to_do/features/tasks/application/task_store.dart';
@@ -10,26 +14,54 @@ import 'package:to_do/features/tasks/domain/task_tag.dart';
 import 'package:to_do/features/tasks/domain/workspace.dart';
 
 import 'fake_attachment_service.dart';
+import 'in_memory_settings_repository.dart';
 
 Future<void> initializeSpanishLocale() => initializeDateFormatting('es');
+
+/// Controlador de ajustes con valores por defecto para las pruebas.
+SettingsController buildTestSettings({
+  AppSettings settings = const AppSettings(),
+  InMemorySettingsRepository? repository,
+}) {
+  return SettingsController(
+    repository ?? InMemorySettingsRepository(initial: settings),
+    initial: settings,
+  );
+}
 
 Widget buildTestApp({
   required TaskStore store,
   required Widget home,
   FakeAttachmentStorage? storage,
   FakeFileOpener? opener,
+  SettingsController? settings,
 }) {
-  return TaskScope(
-    store: store,
-    attachmentStorage: storage ?? FakeAttachmentStorage(),
-    fileOpener: opener ?? FakeFileOpener(),
-    child: MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      locale: const Locale('es'),
-      supportedLocales: const <Locale>[Locale('es')],
-      localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      home: home,
+  final controller = settings ?? buildTestSettings();
+  final appSettings = controller.settings;
+
+  return SettingsScope(
+    controller: controller,
+    child: TaskScope(
+      store: store,
+      attachmentStorage: storage ?? FakeAttachmentStorage(),
+      fileOpener: opener ?? FakeFileOpener(),
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light(
+          animationsEnabled: appSettings.animationsEnabled,
+          animationDurationMs: appSettings.animationDurationMs,
+        ),
+        darkTheme: AppTheme.dark(
+          animationsEnabled: appSettings.animationsEnabled,
+          animationDurationMs: appSettings.animationDurationMs,
+        ),
+        themeMode: appSettings.themePreference.themeMode,
+        themeAnimationDuration: appSettings.motionDuration,
+        locale: const Locale('es'),
+        supportedLocales: const <Locale>[Locale('es')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        home: home,
+      ),
     ),
   );
 }
@@ -40,6 +72,7 @@ Task buildTask({
   String description = '',
   bool isCompleted = false,
   DateTime? dueDate,
+  int? dueTimeMinutes,
   DateTime? createdAt,
   String listId = TaskList.inboxId,
   bool isImportant = false,
@@ -53,6 +86,7 @@ Task buildTask({
     description: description,
     isCompleted: isCompleted,
     dueDate: dueDate,
+    dueTimeMinutes: dueTimeMinutes,
     listId: listId,
     isImportant: isImportant,
     tagIds: tagIds,

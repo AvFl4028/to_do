@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../core/theme/app_motion.dart';
 import '../../../../core/theme/tag_palette.dart';
 import '../../application/task_scope.dart';
 import '../../domain/task_list.dart';
@@ -132,7 +133,7 @@ class AppSidebar extends StatelessWidget {
     final store = TaskScope.of(context);
     final taskCount = store.tasksInList(list.id).length;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Eliminar lista'),
@@ -185,7 +186,7 @@ class AppSidebar extends StatelessWidget {
 
   Future<void> _deleteTag(BuildContext context, TaskTag tag) async {
     final store = TaskScope.of(context);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Eliminar etiqueta'),

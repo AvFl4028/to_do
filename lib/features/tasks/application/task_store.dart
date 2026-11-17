@@ -25,6 +25,9 @@ class TaskStore extends ChangeNotifier {
   final DateTime Function() _clock;
   final Uuid _uuid;
 
+  /// Reloj actual del store, usado también por las etiquetas de fecha.
+  DateTime get now => _clock();
+
   static final Logger _logger = Logger();
 
   List<Task> _tasks = <Task>[];
@@ -215,6 +218,22 @@ class TaskStore extends ChangeNotifier {
     return _normalizeDate(dueDate)!.isBefore(today);
   }
 
+  /// Indica si una tarea pendiente vence hoy y su hora ya pasó.
+  ///
+  /// No cambia el estado «Vencida» ni los filtros, que siguen siendo por día.
+  bool isTimePast(Task task) {
+    final dueDate = task.dueDate;
+    final dueTimeMinutes = task.dueTimeMinutes;
+    if (dueDate == null || dueTimeMinutes == null || task.isCompleted) {
+      return false;
+    }
+    if (!_isToday(dueDate)) {
+      return false;
+    }
+    final now = _clock();
+    return now.hour * 60 + now.minute > dueTimeMinutes;
+  }
+
   Future<void> load() async {
     _isLoading = true;
     _errorMessage = null;
@@ -245,6 +264,7 @@ class TaskStore extends ChangeNotifier {
     required String title,
     String description = '',
     DateTime? dueDate,
+    int? dueTimeMinutes,
     String? listId,
     bool isImportant = false,
     List<String> tagIds = const <String>[],
@@ -257,11 +277,13 @@ class TaskStore extends ChangeNotifier {
     );
 
     final now = _clock().toUtc();
+    final normalizedDate = _normalizeDate(dueDate);
     final task = Task(
       id: _uuid.v4(),
       title: trimmedTitle,
       description: description.trim(),
-      dueDate: _normalizeDate(dueDate),
+      dueDate: normalizedDate,
+      dueTimeMinutes: _normalizeDueTime(normalizedDate, dueTimeMinutes),
       listId: _resolveListId(listId),
       isImportant: isImportant,
       tagIds: _normalizeTagIds(tagIds),
@@ -280,6 +302,7 @@ class TaskStore extends ChangeNotifier {
     required String title,
     required String description,
     DateTime? dueDate,
+    int? dueTimeMinutes,
     String? listId,
     bool? isImportant,
     List<String>? tagIds,
@@ -290,12 +313,15 @@ class TaskStore extends ChangeNotifier {
       return;
     }
 
+    final normalizedDate = _normalizeDate(dueDate);
     _tasks = <Task>[..._tasks]
       ..[index] = _tasks[index].copyWith(
         title: title.trim(),
         description: description.trim(),
-        dueDate: _normalizeDate(dueDate),
+        dueDate: normalizedDate,
         clearDueDate: dueDate == null,
+        dueTimeMinutes: _normalizeDueTime(normalizedDate, dueTimeMinutes),
+        clearDueTime: dueTimeMinutes == null,
         listId: listId == null ? null : _resolveListId(listId),
         isImportant: isImportant,
         tagIds: tagIds == null ? null : _normalizeTagIds(tagIds),
@@ -347,6 +373,29 @@ class TaskStore extends ChangeNotifier {
       ..[index] = _tasks[index].copyWith(
         dueDate: _normalizeDate(dueDate),
         clearDueDate: dueDate == null,
+        clearDueTime: dueDate == null,
+        updatedAt: _clock().toUtc(),
+      );
+    await _commit();
+  }
+
+  /// Cambia solo la hora de entrega. Si la tarea no tiene fecha, no se aplica.
+  Future<void> setDueTime(String id, int? dueTimeMinutes) async {
+    final index = _indexOf(id);
+    if (index == -1) {
+      return;
+    }
+
+    final task = _tasks[index];
+    final normalized = _normalizeDueTime(task.dueDate, dueTimeMinutes);
+    if (task.dueTimeMinutes == normalized) {
+      return;
+    }
+
+    _tasks = <Task>[..._tasks]
+      ..[index] = task.copyWith(
+        dueTimeMinutes: normalized,
+        clearDueTime: normalized == null,
         updatedAt: _clock().toUtc(),
       );
     await _commit();
@@ -741,6 +790,11 @@ class TaskStore extends ChangeNotifier {
       if (comparison != 0) {
         return comparison;
       }
+      final aTime = a.dueTimeMinutes ?? -1;
+      final bTime = b.dueTimeMinutes ?? -1;
+      if (aTime != bTime) {
+        return aTime.compareTo(bTime);
+      }
     } else if (a.dueDate != null) {
       return -1;
     } else if (b.dueDate != null) {
@@ -754,6 +808,16 @@ class TaskStore extends ChangeNotifier {
       return null;
     }
     return DateTime(date.year, date.month, date.day);
+  }
+
+  int? _normalizeDueTime(DateTime? dueDate, int? minutes) {
+    if (dueDate == null || minutes == null) {
+      return null;
+    }
+    if (minutes < 0 || minutes >= 24 * 60) {
+      return null;
+    }
+    return minutes;
   }
 
   Future<void> _commit() {

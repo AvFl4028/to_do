@@ -19,6 +19,8 @@ class TaskTile extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     this.listLabel,
+    this.timePassed = false,
+    this.now,
   });
 
   final Task task;
@@ -28,6 +30,12 @@ class TaskTile extends StatelessWidget {
 
   /// Emoji y nombre de la lista, cuando conviene mostrarlos.
   final (String, String)? listLabel;
+
+  /// `true` cuando la tarea vence hoy y su hora ya pasó.
+  final bool timePassed;
+
+  /// Reloj de referencia para las etiquetas de fecha.
+  final DateTime? now;
 
   final VoidCallback onOpen;
   final VoidCallback onToggle;
@@ -97,7 +105,12 @@ class TaskTile extends StatelessWidget {
                                 emoji: listLabel!.$1,
                                 name: listLabel!.$2,
                               ),
-                            if (task.dueDate != null) DueDateBadge(task: task),
+                            if (task.dueDate != null)
+                              DueDateBadge(
+                                task: task,
+                                timePassed: timePassed,
+                                now: now,
+                              ),
                             for (final tag in tags.take(3))
                               TagChip(tag: tag, compact: true),
                             if (tags.length > 3)

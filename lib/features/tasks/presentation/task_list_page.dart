@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../core/theme/app_motion.dart';
 import '../application/task_scope.dart';
 import '../application/task_store.dart';
 import '../domain/task.dart';
@@ -15,9 +16,13 @@ import 'widgets/task_tile.dart';
 /// Contenido principal de la aplicación, sin `Scaffold`: el shell responsive
 /// ([TasksHomePage]) aporta la AppBar, el drawer y el botón de nueva tarea.
 class TaskListContent extends StatelessWidget {
-  const TaskListContent({super.key, required this.onCreate});
+  const TaskListContent({super.key, required this.onCreate, this.onOpenTask});
 
   final VoidCallback onCreate;
+
+  /// En escritorio permite abrir la tarea en el panel derecho. Si es `null`,
+  /// se navega a la página de detalle completa.
+  final ValueChanged<Task>? onOpenTask;
 
   @override
   Widget build(BuildContext context) {
@@ -156,6 +161,8 @@ class TaskListContent extends StatelessWidget {
         task: task,
         tags: taskTags,
         listLabel: showList && list != null ? (list.emoji, list.name) : null,
+        timePassed: store.isTimePast(task),
+        now: store.now,
         onOpen: () => _openTask(context, task),
         onToggle: () => store.toggleCompleted(task.id),
         onToggleImportant: () => store.toggleImportant(task.id),
@@ -166,6 +173,11 @@ class TaskListContent extends StatelessWidget {
   }
 
   void _openTask(BuildContext context, Task task) {
+    final onOpenTask = this.onOpenTask;
+    if (onOpenTask != null) {
+      onOpenTask(task);
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (context) => TaskDetailPage(taskId: task.id),
@@ -191,6 +203,7 @@ class TaskListContent extends StatelessWidget {
       title: result.title,
       description: result.description,
       dueDate: result.dueDate,
+      dueTimeMinutes: result.dueTimeMinutes,
       listId: result.listId,
       isImportant: result.isImportant,
       tagIds: result.tagIds,
@@ -230,7 +243,7 @@ class TaskListContent extends StatelessWidget {
     final messenger = ScaffoldMessenger.of(context);
     final count = completed.length;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Borrar completadas'),

@@ -76,6 +76,54 @@ void main() {
       expect(repository.stored.tasks.last, task);
     });
 
+    test('guarda la hora de entrega y la limpia con la fecha', () async {
+      final task = await store.create(
+        title: 'Con hora',
+        dueDate: DateTime(2026, 11, 20),
+        dueTimeMinutes: 9 * 60 + 30,
+      );
+
+      expect(task.dueTimeMinutes, 9 * 60 + 30);
+      expect(repository.stored.tasks.single.dueTimeMinutes, 9 * 60 + 30);
+      expect(repository.stored.tasks.single.toJson()['dueTime'], '09:30');
+
+      await store.setDueTime(task.id, 18 * 60 + 45);
+      expect(store.taskById(task.id)!.dueTimeMinutes, 18 * 60 + 45);
+
+      await store.setDueDate(task.id, null);
+      expect(store.taskById(task.id)!.dueDate, isNull);
+      expect(store.taskById(task.id)!.dueTimeMinutes, isNull);
+    });
+
+    test('descarta una hora sin fecha y las horas fuera de rango', () async {
+      final untimed = await store.create(
+        title: 'Sin fecha',
+        dueTimeMinutes: 10 * 60,
+      );
+      expect(untimed.dueTimeMinutes, isNull);
+
+      final timed = await store.create(
+        title: 'Con fecha',
+        dueDate: DateTime(2026, 11, 20),
+        dueTimeMinutes: 24 * 60,
+      );
+      expect(timed.dueTimeMinutes, isNull);
+    });
+
+    test('ordena las tareas sin hora antes que las que tienen hora', () async {
+      await store.create(
+        title: 'Con hora',
+        dueDate: DateTime(2026, 11, 20),
+        dueTimeMinutes: 9 * 60,
+      );
+      await store.create(title: 'Sin hora', dueDate: DateTime(2026, 11, 20));
+
+      expect(store.visibleTasks.map((task) => task.title), <String>[
+        'Sin hora',
+        'Con hora',
+      ]);
+    });
+
     test('actualiza organización, fecha y adjuntos', () async {
       final list = await store.createList(name: 'Trabajo', emoji: '💼');
       final tag = await store.createTag('Casa');
@@ -110,6 +158,32 @@ void main() {
       );
 
       expect(store.taskById(task.id)!.dueDate, isNull);
+    });
+
+    test('marca la hora pasada solo para tareas pendientes de hoy', () async {
+      final today = DateTime(2026, 11, 16);
+      final past = await store.create(
+        title: 'Hora pasada',
+        dueDate: today,
+        dueTimeMinutes: 11 * 60,
+      );
+      final future = await store.create(
+        title: 'Hora futura',
+        dueDate: today,
+        dueTimeMinutes: 13 * 60,
+      );
+      final yesterday = await store.create(
+        title: 'Ayer',
+        dueDate: DateTime(2026, 11, 15),
+        dueTimeMinutes: 11 * 60,
+      );
+
+      expect(store.isTimePast(store.taskById(past.id)!), isTrue);
+      expect(store.isTimePast(store.taskById(future.id)!), isFalse);
+      expect(store.isTimePast(store.taskById(yesterday.id)!), isFalse);
+
+      await store.toggleCompleted(past.id);
+      expect(store.isTimePast(store.taskById(past.id)!), isFalse);
     });
 
     test('alterna completado e importante', () async {
